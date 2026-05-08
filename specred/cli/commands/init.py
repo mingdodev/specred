@@ -40,7 +40,20 @@ test:
 #   - "페이지네이션이 있는 경우 빈 페이지와 마지막 페이지를 테스트한다"
 """
 
-MODELS = ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"]
+PROVIDERS = ["gemini", "anthropic", "openai"]
+
+DEFAULT_MODELS = {
+    "gemini": ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"],
+    "anthropic": ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"],
+    "openai": ["gpt-4o", "gpt-4o-mini", "codex-mini"],
+}
+
+RECOMMENDED_MODEL = {
+    "gemini": "gemini-2.0-flash",
+    "anthropic": "claude-sonnet-4-6",
+    "openai": "gpt-4o",
+}
+
 STYLES = ["behavior", "describe"]
 LANGUAGES = ["java", "kotlin", "python", "javascript"]
 FRAMEWORK_MAP = {
@@ -55,9 +68,9 @@ def _confirm_overwrite(path: Path) -> bool:
     return typer.confirm(f"{path} 이 이미 존재합니다. 덮어쓸까요?")
 
 
-def _write_global_config(api_key: str, model: str) -> None:
+def _write_global_config(provider: str, model: str, api_key: str) -> None:
     GLOBAL_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    config = {"anthropic_api_key": api_key, "model": model}
+    config = {"provider": provider, "model": model, "api_key": api_key}
     GLOBAL_CONFIG_PATH.write_text(yaml.dump(config, allow_unicode=True))
     typer.echo(f"  저장됨: {GLOBAL_CONFIG_PATH}")
 
@@ -80,19 +93,30 @@ def init() -> None:
     if GLOBAL_CONFIG_PATH.exists() and not _confirm_overwrite(GLOBAL_CONFIG_PATH):
         typer.echo("  건너뜀.")
     else:
-        api_key = typer.prompt("  Anthropic API 키를 입력하세요 (sk-ant-...)")
+        typer.echo("\n  LLM provider를 선택하세요:")
+        for i, p in enumerate(PROVIDERS, 1):
+            typer.echo(f"    {i}. {p}")
+        provider_idx = typer.prompt("  번호 선택", default="1")
+        try:
+            provider = PROVIDERS[int(provider_idx) - 1]
+        except (ValueError, IndexError):
+            provider = PROVIDERS[0]
 
-        typer.echo("\n  사용할 Claude 모델을 선택하세요:")
-        for i, m in enumerate(MODELS, 1):
-            note = " (권장)" if m == "claude-sonnet-4-6" else ""
+        models = DEFAULT_MODELS[provider]
+        recommended = RECOMMENDED_MODEL[provider]
+        typer.echo(f"\n  사용할 모델을 선택하세요:")
+        for i, m in enumerate(models, 1):
+            note = " (권장)" if m == recommended else ""
             typer.echo(f"    {i}. {m}{note}")
         model_idx = typer.prompt("  번호 선택", default="1")
         try:
-            model = MODELS[int(model_idx) - 1]
+            model = models[int(model_idx) - 1]
         except (ValueError, IndexError):
-            model = MODELS[0]
+            model = models[0]
 
-        _write_global_config(api_key, model)
+        api_key = typer.prompt(f"  {provider} API 키를 입력하세요")
+
+        _write_global_config(provider=provider, model=model, api_key=api_key)
 
     # --- 프로젝트 설정 (./specred.yml) ---
     typer.echo("\n[ 프로젝트 설정 ] ./specred.yml")
