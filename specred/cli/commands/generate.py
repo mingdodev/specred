@@ -48,12 +48,27 @@ def generate(
     typer.echo("[1/2] 요구사항 분석 중...")
     analyzer_result = analyze(requirement)
 
-    typer.echo("[2/2] 유즈케이스 생성 중...")
     agent = UsecaseAgent(provider=provider)
-    try:
-        output_path = agent.run(analyzer_result)
-    except ProviderError as e:
-        typer.echo(f"오류: {e}", err=True)
-        raise typer.Exit(1)
 
-    typer.echo(f"완료 → {output_path}")
+    while True:
+        typer.echo("[2/2] 유즈케이스 생성 중...")
+        try:
+            output_path = agent.run(analyzer_result)
+        except ProviderError as e:
+            typer.echo(f"오류: {e}", err=True)
+            raise typer.Exit(1)
+
+        typer.echo(f"\n✓ usecase.md 생성 완료\n")
+        typer.echo(f"usecase.md를 확인하세요.")
+        choice = typer.prompt("계속하려면 [o], 재생성하려면 [r], 종료하려면 [q]").strip().lower()
+
+        if choice == "o":
+            typer.echo("완료. 다음 단계는 Domain Agent입니다.")
+            break
+        elif choice == "r":
+            typer.echo("")
+            continue
+        elif choice == "q":
+            raise typer.Exit(0)
+        else:
+            typer.echo("o, r, q 중 하나를 입력하세요.")
