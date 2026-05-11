@@ -5,6 +5,7 @@ import typer
 import yaml
 
 from specred.agents.analyzer import analyze
+from specred.agents.domain_agent import DomainAgent
 from specred.agents.usecase_agent import UsecaseAgent
 from specred.providers.base import ProviderError
 from specred.providers.factory import create_provider
@@ -45,25 +46,49 @@ def generate(
 
     provider = create_provider(provider=provider_name, api_key=api_key, model=resolved_model)
 
-    typer.echo("[1/2] 요구사항 분석 중...")
+    typer.echo("[1/3] 요구사항 분석 중...")
     analyzer_result = analyze(requirement)
 
-    agent = UsecaseAgent(provider=provider)
+    usecase_agent = UsecaseAgent(provider=provider)
 
     while True:
-        typer.echo("[2/2] 유즈케이스 생성 중...")
+        typer.echo("[2/3] 유즈케이스 생성 중...")
         try:
-            output_path = agent.run(analyzer_result)
+            usecase_agent.run(analyzer_result)
         except ProviderError as e:
             typer.echo(f"오류: {e}", err=True)
             raise typer.Exit(1)
 
-        typer.echo(f"\n✓ usecase.md 생성 완료\n")
-        typer.echo(f"usecase.md를 확인하세요.")
+        typer.echo("\n✓ usecase.md 생성 완료\n")
+        typer.echo("usecase.md를 확인하세요.")
         choice = typer.prompt("계속하려면 [o], 재생성하려면 [r], 종료하려면 [q]").strip().lower()
 
         if choice == "o":
-            typer.echo("완료. 다음 단계는 Domain Agent입니다.")
+            break
+        elif choice == "r":
+            typer.echo("")
+            continue
+        elif choice == "q":
+            raise typer.Exit(0)
+        else:
+            typer.echo("o, r, q 중 하나를 입력하세요.")
+
+    domain_agent = DomainAgent(provider=provider)
+
+    while True:
+        typer.echo("\n[3/3] 도메인 모델 추출 중...")
+        try:
+            domain_agent.run()
+        except ProviderError as e:
+            typer.echo(f"오류: {e}", err=True)
+            raise typer.Exit(1)
+
+        typer.echo("\n✓ domain.yml 생성 완료\n")
+        typer.echo("domain.yml을 확인하세요.")
+        choice = typer.prompt("계속하려면 [o], 재생성하려면 [r], 종료하려면 [q]").strip().lower()
+
+        if choice == "o":
+            typer.echo("완료. 다음 단계는 TestGen Agent입니다.")
             break
         elif choice == "r":
             typer.echo("")
