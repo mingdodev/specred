@@ -6,11 +6,13 @@ import yaml
 
 from specred.agents.analyzer import analyze
 from specred.agents.domain_agent import DomainAgent
+from specred.agents.testgen_agent import TestGenAgent
 from specred.agents.usecase_agent import UsecaseAgent
 from specred.providers.base import ProviderError
 from specred.providers.factory import create_provider
 
 GLOBAL_CONFIG_PATH = Path.home() / ".specred" / "config.yml"
+PROJECT_CONFIG_PATH = Path("specred.yml")
 
 
 def _load_config() -> dict:
@@ -18,6 +20,12 @@ def _load_config() -> dict:
         typer.echo("설정 파일이 없습니다. 먼저 `specred init`을 실행하세요.", err=True)
         raise typer.Exit(1)
     return yaml.safe_load(GLOBAL_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+
+
+def _load_project_config() -> dict:
+    if not PROJECT_CONFIG_PATH.exists():
+        return {}
+    return yaml.safe_load(PROJECT_CONFIG_PATH.read_text(encoding="utf-8")) or {}
 
 
 def generate(
@@ -35,6 +43,8 @@ def generate(
         raise typer.Exit(1)
 
     config = _load_config()
+    project_config = _load_project_config()
+    test_config = project_config.get("test", {})
 
     provider_name = config.get("provider", "")
     api_key = config.get("api_key", "")
@@ -44,15 +54,21 @@ def generate(
         typer.echo("provider 또는 api_key가 설정되지 않았습니다. `specred init`을 다시 실행하세요.", err=True)
         raise typer.Exit(1)
 
+    resolved_lang = lang or test_config.get("language", "java")
+    resolved_framework = framework or test_config.get("framework", "junit5")
+    resolved_style = style or test_config.get("style", "behavior")
+    coverage_target = project_config.get("coverage_target", test_config.get("coverage_target", 90))
+    extra_rules = project_config.get("rules", test_config.get("rules", []))
+
     provider = create_provider(provider=provider_name, api_key=api_key, model=resolved_model)
 
-    typer.echo("[1/3] 요구사항 분석 중...")
+    typer.echo("[1/4] 요구사항 분석 중...")
     analyzer_result = analyze(requirement)
 
     usecase_agent = UsecaseAgent(provider=provider)
 
     while True:
-        typer.echo("[2/3] 유즈케이스 생성 중...")
+        typer.echo("[2/4] 유즈케이스 생성 중...")
         try:
             usecase_agent.run(analyzer_result)
         except ProviderError as e:
@@ -76,7 +92,7 @@ def generate(
     domain_agent = DomainAgent(provider=provider)
 
     while True:
-        typer.echo("\n[3/3] 도메인 모델 추출 중...")
+        typer.echo("\n[3/4] 도메인 모델 추출 중...")
         try:
             domain_agent.run()
         except ProviderError as e:
@@ -88,7 +104,46 @@ def generate(
         choice = typer.prompt("계속하려면 [o], 재생성하려면 [r], 종료하려면 [q]").strip().lower()
 
         if choice == "o":
-            typer.echo("완료. 다음 단계는 TestGen Agent입니다.")
+            break
+        elif choice == "r":
+            typer.echo("")
+            continue
+        elif choice == "q":
+            raise typer.Exit(0)
+        else:
+            typer.echo("o, r, q 중 하나를 입력하세요.")
+
+    testgen_agent = TestGenAgent(
+        provider=provider,
+        language=resolved_lang,
+        framework=resolved_framework,
+        style=resolved_style,
+        coverage_target=coverage_target,
+        rules=extra_rules,
+    )
+
+    while True:
+        typer.echo(f"\n[4/4] 테스트 코드 생성 중... ({resolved_lang}/{resolved_framework}/{resolved_style})")
+        try:
+            generated_files = testgen_agent.run()
+        except ProviderError as e:
+            typer.echo(f"오류: {e}", err=True)
+            raise typer.Exit(1)
+
+        typer.echo("\n✓ 테스트 코드 생성 완료\n")
+
+        if generated_files:
+            typer.echo("생성된 파일:")
+            for f in generated_files:
+                typer.echo(f"  {f}")
+        else:
+            typer.echo("(생성된 파일 없음)")
+
+        typer.echo("")
+        choice = typer.prompt("계속하려면 [o], 재생성하려면 [r], 종료하려면 [q]").strip().lower()
+
+        if choice == "o":
+            typer.echo("완료.")
             break
         elif choice == "r":
             typer.echo("")

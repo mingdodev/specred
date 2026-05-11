@@ -56,12 +56,16 @@ RECOMMENDED_MODEL = {
 
 STYLES = ["behavior", "describe"]
 LANGUAGES = ["java", "kotlin", "python", "javascript"]
-FRAMEWORK_MAP = {
-    "java": "junit5",
-    "kotlin": "kotest",
-    "python": "pytest",
-    "javascript": "jest",
+ALLOWED_FRAMEWORKS = {
+    "java": ["junit5"],
+    "kotlin": ["junit5", "kotest"],
+    "python": ["pytest"],
+    "javascript": ["jest"],
 }
+
+
+def _validate_combination(language: str, framework: str) -> bool:
+    return framework in ALLOWED_FRAMEWORKS.get(language, [])
 
 
 def _confirm_overwrite(path: Path) -> bool:
@@ -143,8 +147,29 @@ def init() -> None:
         except (ValueError, IndexError):
             language = LANGUAGES[0]
 
-        framework = FRAMEWORK_MAP[language]
-        typer.echo(f"  프레임워크: {framework} (언어에 따라 자동 선택됨)")
+        allowed = ALLOWED_FRAMEWORKS[language]
+        if len(allowed) == 1:
+            framework = allowed[0]
+            typer.echo(f"  프레임워크: {framework} (언어에 따라 자동 선택됨)")
+        else:
+            typer.echo(f"\n  테스트 프레임워크를 선택하세요 ({language} 지원: {', '.join(allowed)}):")
+            for i, fw in enumerate(allowed, 1):
+                typer.echo(f"    {i}. {fw}")
+            while True:
+                fw_idx = typer.prompt("  번호 선택", default="1")
+                try:
+                    framework = allowed[int(fw_idx) - 1]
+                    break
+                except (ValueError, IndexError):
+                    typer.echo(f"  오류: {language}에서는 {', '.join(allowed)}만 사용할 수 있습니다.")
+
+        if not _validate_combination(language, framework):
+            typer.echo(
+                f"  오류: {language}와 {framework}는 함께 사용할 수 없습니다. "
+                f"허용 조합: {', '.join(ALLOWED_FRAMEWORKS[language])}",
+                err=True,
+            )
+            raise typer.Exit(1)
 
         _write_project_config(style, language, framework)
 
