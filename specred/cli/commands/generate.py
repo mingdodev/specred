@@ -1,8 +1,7 @@
-from pathlib import Path
+import os
 from typing import Optional
 
 import typer
-import yaml
 
 from specred.agents.analyzer import analyze
 from specred.agents.domain_agent import DomainAgent
@@ -10,22 +9,15 @@ from specred.agents.testgen_agent import TestGenAgent
 from specred.agents.usecase_agent import UsecaseAgent
 from specred.providers.base import ProviderError
 from specred.providers.factory import create_provider
-
-GLOBAL_CONFIG_PATH = Path.home() / ".specred" / "config.yml"
-PROJECT_CONFIG_PATH = Path("specred.yml")
+from specred.utils.filesystem import read_global_config, read_project_config
 
 
 def _load_config() -> dict:
-    if not GLOBAL_CONFIG_PATH.exists():
+    config = read_global_config()
+    if not config:
         typer.echo("설정 파일이 없습니다. 먼저 `specred init`을 실행하세요.", err=True)
         raise typer.Exit(1)
-    return yaml.safe_load(GLOBAL_CONFIG_PATH.read_text(encoding="utf-8")) or {}
-
-
-def _load_project_config() -> dict:
-    if not PROJECT_CONFIG_PATH.exists():
-        return {}
-    return yaml.safe_load(PROJECT_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+    return config
 
 
 def generate(
@@ -38,12 +30,12 @@ def generate(
     framework: Optional[str] = typer.Option(None, "--framework", help="프레임워크 오버라이드 (junit5 | kotest | pytest | jest)"),
 ) -> None:
     """요구사항 문서를 분석해 테스트 코드를 생성합니다."""
-    if not Path(requirement).exists():
+    if not os.path.exists(requirement):
         typer.echo(f"파일을 찾을 수 없습니다: {requirement}", err=True)
         raise typer.Exit(1)
 
     config = _load_config()
-    project_config = _load_project_config()
+    project_config = read_project_config()
     test_config = project_config.get("test", {})
 
     provider_name = config.get("provider", "")

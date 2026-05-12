@@ -1,7 +1,7 @@
 import re
-from pathlib import Path
 
 from specred.providers.base import LLMProvider
+from specred.utils.filesystem import write_file
 
 SYSTEM_PROMPT = """\
 당신은 소프트웨어 요구사항 분석 전문가입니다.
@@ -22,22 +22,22 @@ SYSTEM_PROMPT = """\
 출력은 Mermaid 코드만, 설명 없이.\
 """
 
-OUTPUT_PATH = Path("usecase.md")
+OUTPUT_PATH = "usecase.md"
 
 
 class UsecaseAgent:
     def __init__(self, provider: LLMProvider) -> None:
         self._provider = provider
 
-    def run(self, analyzer_result: dict) -> Path:
-        """analyzer 결과를 받아 LLM을 호출하고 usecase.mmd를 생성한다."""
+    def run(self, analyzer_result: dict) -> str:
+        """analyzer 결과를 받아 LLM을 호출하고 usecase.md를 생성한다."""
         raw_text = analyzer_result["raw_text"]
         user_message = f"다음 요구사항을 분석하여 Mermaid usecase diagram을 생성해줘:\n\n{raw_text}"
 
         response = self._provider.complete(system=SYSTEM_PROMPT, user=user_message)
 
         mermaid_code = _extract_mermaid(response)
-        OUTPUT_PATH.write_text(f"```mermaid\n{mermaid_code}\n```", encoding="utf-8")
+        write_file(OUTPUT_PATH, f"```mermaid\n{mermaid_code}\n```")
         return OUTPUT_PATH
 
 

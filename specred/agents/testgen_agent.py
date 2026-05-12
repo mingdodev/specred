@@ -1,9 +1,9 @@
 import re
-from pathlib import Path
 
 import typer
 
 from specred.providers.base import LLMProvider
+from specred.utils.filesystem import read_file, write_file
 
 DEFAULT_RULES = [
     "일대다/다대다 관계는 연관된 데이터 내용까지 검증한다",
@@ -18,8 +18,8 @@ DEFAULT_RULES = [
     "룰 적용 중 판단이 필요한 지점에서는 진행을 멈추고 역질문한다",
 ]
 
-USECASE_PATH = Path("usecase.md")
-DOMAIN_PATH = Path("domain.yml")
+USECASE_PATH = "usecase.md"
+DOMAIN_PATH = "domain.yml"
 MAX_RETRIES = 5
 
 
@@ -46,10 +46,10 @@ class TestGenAgent:
             else "describe/it 계층 구조로 작성하세요."
         )
 
-    def run(self) -> list[Path]:
+    def run(self) -> list[str]:
         """domain.yml과 usecase.md를 읽어 테스트 코드를 생성한다. 역질문 발생 시 개발자에게 확인 후 재시도."""
-        usecase_content = USECASE_PATH.read_text(encoding="utf-8")
-        domain_content = DOMAIN_PATH.read_text(encoding="utf-8")
+        usecase_content = read_file(USECASE_PATH)
+        domain_content = read_file(DOMAIN_PATH)
 
         system = self._build_system_prompt()
         base_request = (
@@ -97,16 +97,15 @@ class TestGenAgent:
         )
 
 
-def _parse_and_save(response: str) -> list[Path]:
+def _parse_and_save(response: str) -> list[str]:
     """### 파일경로 + 코드블록 패턴으로 파일을 분리하여 저장한다."""
     pattern = re.compile(r"###\s+(.+?)\n```(?:\w+)?\n(.*?)```", re.DOTALL)
-    saved: list[Path] = []
+    saved: list[str] = []
 
     for match in pattern.finditer(response):
-        file_path = Path(match.group(1).strip())
+        file_path = match.group(1).strip()
         code = match.group(2).rstrip()
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.write_text(code, encoding="utf-8")
+        write_file(file_path, code)
         saved.append(file_path)
 
     return saved

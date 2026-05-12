@@ -1,11 +1,13 @@
-from pathlib import Path
-
 import typer
-import yaml
+
+from specred.utils.filesystem import (
+    read_global_config,
+    read_project_config,
+    write_file,
+    write_global_config,
+)
 
 app = typer.Typer(invoke_without_command=True)
-
-GLOBAL_CONFIG_PATH = Path.home() / ".specred" / "config.yml"
 
 PROJECT_CONFIG_TEMPLATE = """\
 # 테스트 스타일을 선택하세요 (기본값: behavior)
@@ -68,22 +70,19 @@ def _validate_combination(language: str, framework: str) -> bool:
     return framework in ALLOWED_FRAMEWORKS.get(language, [])
 
 
-def _confirm_overwrite(path: Path) -> bool:
-    return typer.confirm(f"{path} 이 이미 존재합니다. 덮어쓸까요?")
+def _confirm_overwrite(label: str) -> bool:
+    return typer.confirm(f"{label} 이 이미 존재합니다. 덮어쓸까요?")
 
 
 def _write_global_config(provider: str, model: str, api_key: str) -> None:
-    GLOBAL_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    config = {"provider": provider, "model": model, "api_key": api_key}
-    GLOBAL_CONFIG_PATH.write_text(yaml.dump(config, allow_unicode=True))
-    typer.echo(f"  저장됨: {GLOBAL_CONFIG_PATH}")
+    write_global_config({"provider": provider, "model": model, "api_key": api_key})
+    typer.echo("  저장됨: ~/.specred/config.yml")
 
 
 def _write_project_config(style: str, language: str, framework: str) -> None:
-    project_config_path = Path.cwd() / "specred.yml"
     content = PROJECT_CONFIG_TEMPLATE.format(style=style, language=language, framework=framework)
-    project_config_path.write_text(content)
-    typer.echo(f"  저장됨: {project_config_path}")
+    write_file("specred.yml", content)
+    typer.echo("  저장됨: specred.yml")
 
 
 @app.callback()
@@ -94,7 +93,7 @@ def init() -> None:
     # --- 전역 설정 (~/.specred/config.yml) ---
     typer.echo("[ 전역 설정 ] ~/.specred/config.yml")
 
-    if GLOBAL_CONFIG_PATH.exists() and not _confirm_overwrite(GLOBAL_CONFIG_PATH):
+    if read_global_config() and not _confirm_overwrite("~/.specred/config.yml"):
         typer.echo("  건너뜀.")
     else:
         typer.echo("\n  LLM provider를 선택하세요:")
@@ -125,8 +124,7 @@ def init() -> None:
     # --- 프로젝트 설정 (./specred.yml) ---
     typer.echo("\n[ 프로젝트 설정 ] ./specred.yml")
 
-    project_config_path = Path.cwd() / "specred.yml"
-    if project_config_path.exists() and not _confirm_overwrite(project_config_path):
+    if read_project_config() and not _confirm_overwrite("specred.yml"):
         typer.echo("  건너뜀.")
     else:
         typer.echo("\n  테스트 스타일을 선택하세요:")

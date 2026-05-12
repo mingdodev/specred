@@ -1,9 +1,7 @@
 import re
-from pathlib import Path
-
-import yaml
 
 from specred.providers.base import LLMProvider
+from specred.utils.filesystem import read_file, write_file
 
 SYSTEM_PROMPT = """\
 당신은 소프트웨어 도메인 모델링 전문가입니다.
@@ -38,17 +36,17 @@ entities:
 6. YAML 외 설명 텍스트 절대 포함하지 말 것\
 """
 
-OUTPUT_PATH = Path("domain.yml")
-USECASE_PATH = Path("usecase.md")
+OUTPUT_PATH = "domain.yml"
+USECASE_PATH = "usecase.md"
 
 
 class DomainAgent:
     def __init__(self, provider: LLMProvider) -> None:
         self._provider = provider
 
-    def run(self) -> Path:
+    def run(self) -> str:
         """usecase.md를 읽어 LLM을 호출하고 domain.yml을 생성한다."""
-        usecase_content = USECASE_PATH.read_text(encoding="utf-8")
+        usecase_content = read_file(USECASE_PATH)
         user_message = (
             f"다음 유즈케이스 다이어그램을 분석하여 도메인 모델을 domain.yml 형식으로 추출해줘:\n\n{usecase_content}"
         )
@@ -56,7 +54,7 @@ class DomainAgent:
         response = self._provider.complete(system=SYSTEM_PROMPT, user=user_message)
 
         yaml_content = _extract_yaml(response)
-        OUTPUT_PATH.write_text(yaml_content, encoding="utf-8")
+        write_file(OUTPUT_PATH, yaml_content)
         return OUTPUT_PATH
 
 
